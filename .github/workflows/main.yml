@@ -1,0 +1,41 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install pyinstaller requests
+
+      - name: Build EXE
+        run: |
+          pyinstaller --onefile --noconsole --name="WindowsUpdate" agent_tg.py
+
+      - name: Get version tag
+        id: version
+        run: echo "tag=build-$(date +'%Y%m%d-%H%M%S')" >> $env:GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Build ${{ steps.version.outputs.tag }}"
+          body: "Auto build from latest commit"
+          files: dist/WindowsUpdate.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
